@@ -1,0 +1,9 @@
+torch
+torchvision
+mss
+opencv-python
+pydirectinput
+keyboard
+imageio
+imageio-ffmpeg
+numpy

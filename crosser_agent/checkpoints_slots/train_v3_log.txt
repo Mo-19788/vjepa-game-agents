@@ -1,0 +1,80 @@
+/home/mes01/game/venv/lib/python3.12/site-packages/pygame/pkgdata.py:25: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import resource_stream, resource_exists
+pygame 2.6.1 (SDL 2.28.4, Python 3.12.3)
+Hello from the pygame community. https://www.pygame.org/contribute.html
+Device: NVIDIA H100 80GB HBM3
+
+=== Generating Data: 200 eps x 400 steps (subsample=2, ~40000 samples) ===
+  50/200 (10000 samples)
+  100/200 (20000 samples)
+  150/200 (30000 samples)
+  200/200 (40000 samples)
+Total: 40000 samples (48.2 GB for frames)
+
+=== Training Slot Encoder (100 epochs) ===
+SlotEncoder: 1,066,528  Decoder: 914,036  Dynamics: 559,168  CarProbe: 1,911,440
+Ep   1/100 | Recon: 0.3280 | Dyn: 0.014474 | Pos: 0.046319 | Occ: 0.5393 | 40s
+Ep   2/100 | Recon: 0.1809 | Dyn: 0.025581 | Pos: 0.045660 | Occ: 0.4780 | 78s
+Ep   3/100 | Recon: 0.1220 | Dyn: 0.036941 | Pos: 0.044796 | Occ: 0.4154 | 116s
+Ep   5/100 | Recon: 0.0966 | Dyn: 0.021935 | Pos: 0.037803 | Occ: 0.2918 | 192s
+Ep  10/100 | Recon: 0.0560 | Dyn: 0.014422 | Pos: 0.010128 | Occ: 0.1362 | 382s
+Ep  15/100 | Recon: 0.0451 | Dyn: 0.012278 | Pos: 0.007069 | Occ: 0.0941 | 572s
+Ep  20/100 | Recon: 0.0341 | Dyn: 0.011321 | Pos: 0.004429 | Occ: 0.0759 | 763s
+Ep  25/100 | Recon: 0.0270 | Dyn: 0.010317 | Pos: 0.003911 | Occ: 0.0643 | 953s
+Ep  30/100 | Recon: 0.0230 | Dyn: 0.009304 | Pos: 0.003645 | Occ: 0.0565 | 1143s
+Ep  35/100 | Recon: 0.0201 | Dyn: 0.008019 | Pos: 0.003386 | Occ: 0.0506 | 1333s
+Ep  40/100 | Recon: 0.0175 | Dyn: 0.006847 | Pos: 0.003181 | Occ: 0.0452 | 1523s
+Ep  45/100 | Recon: 0.0159 | Dyn: 0.006084 | Pos: 0.002957 | Occ: 0.0410 | 1714s
+Ep  50/100 | Recon: 0.0154 | Dyn: 0.005909 | Pos: 0.002808 | Occ: 0.0375 | 1905s
+Ep  55/100 | Recon: 0.0134 | Dyn: 0.005007 | Pos: 0.002621 | Occ: 0.0337 | 2094s
+Ep  60/100 | Recon: 0.0124 | Dyn: 0.004500 | Pos: 0.002443 | Occ: 0.0308 | 2286s
+Ep  65/100 | Recon: 0.0120 | Dyn: 0.004352 | Pos: 0.002316 | Occ: 0.0286 | 2477s
+Ep  70/100 | Recon: 0.0120 | Dyn: 0.004326 | Pos: 0.002205 | Occ: 0.0267 | 2667s
+Ep  75/100 | Recon: 0.0112 | Dyn: 0.003877 | Pos: 0.002090 | Occ: 0.0246 | 2857s
+Ep  80/100 | Recon: 0.0110 | Dyn: 0.003789 | Pos: 0.002009 | Occ: 0.0233 | 3047s
+Ep  85/100 | Recon: 0.0103 | Dyn: 0.003496 | Pos: 0.001933 | Occ: 0.0218 | 3238s
+Ep  90/100 | Recon: 0.0101 | Dyn: 0.003358 | Pos: 0.001884 | Occ: 0.0211 | 3428s
+Ep  95/100 | Recon: 0.0100 | Dyn: 0.003265 | Pos: 0.001853 | Occ: 0.0207 | 3618s
+Ep 100/100 | Recon: 0.0100 | Dyn: 0.003222 | Pos: 0.001839 | Occ: 0.0204 | 3809s
+Slot encoder training done! Best loss: 0.0355
+
+=== Training Car Occupancy Probe (200 epochs) ===
+Pre-encoding with slot encoder...
+Encoded: torch.Size([40000, 256])
+Car probe: 1,911,440 params
+Ep   1 | T:0.4330 V:0.2320 Acc:0.882 Rec:0.876 Emp:0.883
+Ep   2 | T:0.3129 V:0.2034 Acc:0.898 Rec:0.879 Emp:0.902
+Ep   3 | T:0.2885 V:0.1935 Acc:0.906 Rec:0.889 Emp:0.909
+Ep   4 | T:0.2724 V:0.1838 Acc:0.911 Rec:0.899 Emp:0.913
+Ep   5 | T:0.2602 V:0.1771 Acc:0.914 Rec:0.912 Emp:0.915
+Ep  25 | T:0.1157 V:0.0695 Acc:0.973 Rec:0.975 Emp:0.972
+Ep  50 | T:0.0662 V:0.0382 Acc:0.985 Rec:0.987 Emp:0.985
+Ep  75 | T:0.0477 V:0.0278 Acc:0.989 Rec:0.990 Emp:0.989
+Ep 100 | T:0.0384 V:0.0242 Acc:0.991 Rec:0.992 Emp:0.990
+Ep 125 | T:0.0333 V:0.0206 Acc:0.992 Rec:0.992 Emp:0.992
+Ep 150 | T:0.0300 V:0.0194 Acc:0.992 Rec:0.993 Emp:0.992
+Ep 175 | T:0.0285 V:0.0186 Acc:0.993 Rec:0.992 Emp:0.993
+Ep 200 | T:0.0281 V:0.0184 Acc:0.993 Rec:0.993 Emp:0.993
+Car probe saved!
+
+=== Evaluating Slot Attention Masks ===
+
+Slot-car correlations (top 5):
+  Slot  5: corr=+0.011  mean_attn=0.125  max_attn=0.142
+  Slot  7: corr=-0.010  mean_attn=0.125  max_attn=0.137
+  Slot  0: corr=-0.010  mean_attn=0.125  max_attn=0.145
+  Slot  1: corr=-0.007  mean_attn=0.124  max_attn=0.135
+  Slot  3: corr=+0.006  mean_attn=0.125  max_attn=0.137
+
+Slot-player correlations (top 3):
+  Slot  1: corr=+0.004
+  Slot  6: corr=-0.003
+  Slot  2: corr=-0.003
+
+Slot mask evaluation done!
+Step 1: NOOP=(0.535,0.995) | UP=(0.528,0.941) | DOWN=(0.535,0.995) | LEFT=(0.438,0.988) | RIGHT=(0.647,0.997)
+Step 5: NOOP=(0.543,0.995) | UP=(0.493,0.922) | DOWN=(0.544,0.996) | LEFT=(0.100,0.963) | RIGHT=(0.978,0.992)
+Step 10: NOOP=(0.546,0.996) | UP=(0.480,0.840) | DOWN=(0.548,0.996) | LEFT=(0.008,0.966) | RIGHT=(0.973,0.992)
+
+=== All training complete! ===
+Checkpoints saved to: crosser_agent/checkpoints_slots/

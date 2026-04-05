@@ -1,0 +1,50 @@
+{
+  "render_width": 256,
+  "render_height": 256,
+  "fps": 60,
+  "headless": true,
+  "arena_width": 640.0,
+  "arena_height": 480.0,
+  "ball_size": 24,
+  "ball_speed": 5.0,
+  "paddle_width": 16,
+  "paddle_height": 100,
+  "paddle_speed": 5.0,
+  "paddle_margin": 20.0,
+  "target_score": 5,
+  "max_steps": 10000,
+  "max_rally_length": 0,
+  "policy_left": "human",
+  "policy_right": "bot",
+  "bot_difficulty": "medium",
+  "save_frames": true,
+  "save_actions": true,
+  "save_states": true,
+  "save_dir": "dataset",
+  "seed": null,
+  "randomize_visuals": false,
+  "randomize_dynamics": false,
+  "randomize_env": false,
+  "bg_color": [
+    20,
+    20,
+    40
+  ],
+  "paddle_color": [
+    0,
+    200,
+    255
+  ],
+  "ball_color": [
+    255,
+    255,
+    0
+  ],
+  "line_color": [
+    60,
+    60,
+    100
+  ],
+  "line_thickness": 2,
+  "version": "0.1.0"
+}

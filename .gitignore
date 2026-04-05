@@ -1,0 +1,66 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.eggs/
+
+# Virtual environment
+game/
+venv/
+.venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Claude Code memory (personal)
+.claude/
+
+# Large intermediate data (can be regenerated)
+crosser_agent/car_probe_data.pt
+crosser_agent/car_probe_local.pt
+
+# Duplicate/intermediate checkpoints (keep only final versions)
+crosser_agent/checkpoints_gpu/
+crosser_agent/checkpoints_slots_v1/
+
+# Pong backup checkpoints (keep v2 as best, and working_reactive)
+game_agent/checkpoints_backup/
+game_agent/checkpoints_v1_reactive/
+
+# Training data (can be regenerated — see README)
+crosser/dataset/
+crosser_agent/training_chunks/
+game_agent/data/
+mygame/dataset/
+mygame/dataset_v2/
+mygame/dataset_v2_visual/
+mygame/data_logging/
+
+# Kaggle (large zips + staging)
+kaggle_training/
+
+# Training logs
+*.log
+train_slots_output.log
+train_slots_v2.log
+train_slots_v3.log
+
+# Misc
+Mesen2-master/
+Mesen.exe
+scripts/
+debug_*.png
+checkpoints.zip
+gameplay.mp4
+kaggle.json
+crosser_log.txt
+gameplan.txt

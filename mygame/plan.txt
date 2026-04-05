@@ -1,0 +1,762 @@
+Here’s a solid build spec you can hand to your coding agent.
+
+---
+
+# Spec: Retro Pong / Ping Pong Environment for V-JEPA Data Generation
+
+## 1. Objective
+
+Build a lightweight 2D game environment inspired by Pong / table tennis that is optimized for **high-volume trajectory generation** for **video-based representation learning** such as V-JEPA.
+
+This is **not primarily a game for humans**. It is a **controllable synthetic world** that supports:
+
+* manual play with keyboard
+* scripted bot play
+* random policy rollouts
+* deterministic replay
+* frame export
+* action logging
+* optional hidden-state logging
+* dataset generation at scale
+
+The environment must be simple, fast, reproducible, and extensible.
+
+---
+
+## 2. Core Design Goals
+
+The system must satisfy these goals:
+
+### 2.1 Full Control
+
+The environment must expose full control over:
+
+* physics
+* actions
+* reset state
+* random seed
+* rendering
+* logging
+* episode termination
+
+### 2.2 Determinism
+
+Given:
+
+* same seed
+* same config
+* same action sequence
+
+the environment must produce the same trajectory.
+
+### 2.3 Fast Dataset Generation
+
+The environment must support:
+
+* real-time interactive mode
+* fast offline generation mode
+* headless generation mode if possible
+
+### 2.4 Clean Data Output
+
+Every episode must be exportable as:
+
+* frames
+* per-frame action records
+* metadata
+* optional object state
+
+### 2.5 Extensibility
+
+The initial game is simple Pong, but architecture must allow later addition of:
+
+* multi-ball
+* spin
+* obstacles
+* distractors
+* occlusion
+* different court sizes
+* different camera views
+* asymmetry
+* richer action spaces
+
+---
+
+## 3. Recommended Tech Stack
+
+Use:
+
+* **Python 3.11+**
+* **Pygame** for rendering and interaction
+* standard library plus:
+
+  * `numpy`
+  * `dataclasses`
+  * `json`
+  * `pathlib`
+  * `argparse`
+
+Optional:
+
+* `Pillow` for frame handling if needed
+* `opencv-python` only if video export is later added
+
+Do not introduce heavy dependencies unless necessary.
+
+---
+
+## 4. Game Concept
+
+A 2D Pong-like environment with:
+
+* one ball
+* one player paddle on the left
+* one opponent paddle on the right
+* rectangular arena
+* top/bottom wall bounce
+* ball bounce on paddles
+* scoring when ball exits left or right
+
+The game should visually resemble a clean retro arcade game:
+
+* black or dark background
+* simple geometric sprites
+* no external art assets required
+* minimal UI
+
+---
+
+## 5. Modes of Operation
+
+The environment must support the following modes:
+
+### 5.1 Human Play Mode
+
+* controlled by keyboard
+* real-time rendering
+* human can play against bot or another human
+* can record trajectories
+
+### 5.2 Bot Play Mode
+
+* one or both paddles controlled by heuristic bot(s)
+* can render or run headless
+* records trajectories
+
+### 5.3 Random Rollout Mode
+
+* one or both paddles driven by random or constrained-random policy
+* used for exploration dataset generation
+
+### 5.4 Dataset Generation Mode
+
+* automatically generate N episodes
+* save frames and logs to disk
+* configurable seeds and parameters
+
+### 5.5 Replay Mode
+
+* replay a recorded trajectory from saved action log
+* optionally compare actual replay with saved metadata for determinism checks
+
+---
+
+## 6. Functional Requirements
+
+## 6.1 Environment API
+
+Implement a clean environment class with at least:
+
+```python
+reset(seed: int | None = None, config_override: dict | None = None) -> Observation
+step(action_left, action_right=None) -> StepResult
+render() -> None
+get_frame() -> np.ndarray
+get_state() -> dict
+set_state(state: dict) -> None
+close() -> None
+```
+
+### Observation
+
+Observation should support:
+
+* RGB frame array
+* optional metadata dictionary
+
+### StepResult
+
+Should contain:
+
+* next observation
+* reward_left
+* reward_right
+* done
+* truncated
+* info
+
+---
+
+## 6.2 Action Space
+
+Use a small discrete action space.
+
+For single paddle:
+
+* `0 = NOOP`
+* `1 = UP`
+* `2 = DOWN`
+
+Optional later extension:
+
+* `3 = BOOST`
+* `4 = SPIN_UP`
+* `5 = SPIN_DOWN`
+
+For MVP, keep it:
+
+* NOOP
+* UP
+* DOWN
+
+Both paddles should use the same action set.
+
+---
+
+## 6.3 Physics
+
+Implement deterministic 2D physics with:
+
+### Ball
+
+* position `(x, y)`
+* velocity `(vx, vy)`
+* fixed size
+* initialized from center on serve/reset
+* slight randomization of initial angle allowed, controlled by seed
+
+### Paddles
+
+* fixed width and height
+* only move vertically
+* clamped inside arena
+* fixed movement speed per step
+
+### Collision Rules
+
+* ball bounces off top and bottom walls
+* ball bounces off paddle face
+* ball cannot tunnel through paddles
+* on paddle collision, horizontal velocity reverses
+* vertical velocity may change based on impact position relative to paddle center
+
+### Scoring
+
+* if ball exits left boundary: point to right player
+* if ball exits right boundary: point to left player
+* round resets after score unless episode ends
+
+---
+
+## 6.4 Episode Logic
+
+An episode ends when one of these conditions is met:
+
+* one player reaches target score
+* max step count reached
+* max rally count reached
+* optional stagnation condition triggered
+
+Defaults:
+
+* target score = 5
+* max steps configurable
+* max rally length configurable
+
+---
+
+## 6.5 Rendering
+
+The renderer must support:
+
+* windowed mode
+* offscreen frame generation
+* configurable resolution
+
+Default visible resolution:
+
+* 256 x 256 or 160 x 210 equivalent retro-style
+
+Internal coordinates may differ from render resolution.
+
+Render elements:
+
+* background
+* center line
+* paddles
+* ball
+* optional score display
+
+Keep visuals minimal and high-contrast.
+
+---
+
+## 7. Dataset Requirements
+
+## 7.1 Per-Episode Output Structure
+
+For each episode, save data like:
+
+```text
+dataset/
+  split_train/
+    ep_000001/
+      metadata.json
+      actions.jsonl
+      states.jsonl
+      frame_000000.png
+      frame_000001.png
+      ...
+  split_val/
+    ep_000201/
+      ...
+```
+
+Agent may choose a more storage-efficient variant later, but this is the baseline.
+
+---
+
+## 7.2 Required Logged Data
+
+### metadata.json
+
+Store:
+
+* episode_id
+* seed
+* config used
+* mode
+* policy type for left/right
+* total steps
+* final score
+* timestamp
+* version of environment
+
+### actions.jsonl
+
+One row per step:
+
+```json
+{"t": 0, "action_left": 1, "action_right": 2}
+```
+
+### states.jsonl
+
+Optional but strongly recommended. One row per step:
+
+```json
+{
+  "t": 0,
+  "ball_x": 120.5,
+  "ball_y": 83.0,
+  "ball_vx": -2.0,
+  "ball_vy": 1.25,
+  "left_paddle_y": 77.0,
+  "right_paddle_y": 90.0,
+  "score_left": 0,
+  "score_right": 0,
+  "done": false
+}
+```
+
+### Frames
+
+Save one image per timestep:
+
+* PNG format
+* consistent naming with zero padding
+
+---
+
+## 7.3 Dataset Integrity Requirements
+
+* frame count must match logged timestep count
+* all logs must be flush-safe
+* incomplete episodes must be marked clearly
+* deterministic replay should be testable from logs
+
+---
+
+## 8. Policy Requirements
+
+## 8.1 Human Policy
+
+Keyboard controls:
+
+* left paddle: `W/S`
+* optional right paddle: `UP/DOWN`
+
+## 8.2 Heuristic Bot
+
+Implement a simple bot:
+
+* track ball y-position
+* move paddle up/down toward predicted intercept
+* optional reaction lag
+* optional skill noise
+
+Bot must support difficulty levels:
+
+* easy
+* medium
+* hard
+
+## 8.3 Random Policy
+
+Implement:
+
+* uniform random actions
+* sticky random actions
+* constrained random actions
+
+Sticky random means action persists for a few frames before changing.
+
+## 8.4 Scripted Curriculum Policies
+
+Support scripted policies for data diversity:
+
+* perfect tracking
+* delayed tracking
+* noisy tracking
+* intentionally weak defense
+* oscillatory movement
+
+---
+
+## 9. Domain Randomization
+
+The environment must support optional randomization parameters.
+
+### Visual randomization
+
+* background color
+* paddle color
+* ball color
+* line thickness
+* paddle size
+* ball size
+* small render noise
+* optional distractor shapes
+
+### Dynamics randomization
+
+* ball speed
+* paddle speed
+* bounce coefficient
+* serve angle
+* reaction lag for bot
+
+### Environment randomization
+
+* arena width
+* arena height
+* score target
+* wall behavior variants
+
+All randomization must be seed-controlled.
+
+---
+
+## 10. Config System
+
+Implement a config object or config file system.
+
+Must allow control of:
+
+* resolution
+* fps
+* headless/rendered mode
+* max episode steps
+* target score
+* ball speed
+* paddle speed
+* paddle size
+* ball size
+* randomization flags
+* logging options
+* save directory
+* policy selection
+* seed
+
+Use:
+
+* dataclass config
+* optional JSON config load/save
+
+---
+
+## 11. CLI Requirements
+
+Provide a command-line interface.
+
+Examples:
+
+```bash
+python main.py --mode play
+python main.py --mode bot_vs_bot
+python main.py --mode record_human --out dataset/human_run
+python main.py --mode generate --episodes 100 --out dataset/train --policy-left bot --policy-right bot
+python main.py --mode replay --episode dataset/train/ep_000001
+```
+
+Minimum CLI modes:
+
+* `play`
+* `record_human`
+* `bot_vs_bot`
+* `generate`
+* `replay`
+
+---
+
+## 12. Architecture Requirements
+
+Project structure should look roughly like:
+
+```text
+project/
+  main.py
+  config.py
+  env/
+    pong_env.py
+    physics.py
+    renderer.py
+    state.py
+  policies/
+    human_policy.py
+    random_policy.py
+    bot_policy.py
+  logging/
+    dataset_writer.py
+    replay_loader.py
+  utils/
+    seeding.py
+    io.py
+  tests/
+    test_physics.py
+    test_determinism.py
+    test_logging.py
+```
+
+Keep modules small and separated by concern.
+
+---
+
+## 13. Non-Functional Requirements
+
+### 13.1 Code Quality
+
+* readable
+* typed where practical
+* modular
+* documented
+* minimal hidden coupling
+
+### 13.2 Performance
+
+* should support long automated generation runs
+* avoid unnecessary allocations in the main loop
+* no memory leak across many episodes
+
+### 13.3 Reliability
+
+* robust file writing
+* graceful interruption handling
+* recoverable partial output if interrupted
+
+---
+
+## 14. Testing Requirements
+
+Add tests for:
+
+### Physics
+
+* wall bounce
+* paddle bounce
+* score detection
+* paddle boundary clamp
+
+### Determinism
+
+* same seed + same actions => same state trajectory
+
+### Logging
+
+* frame count matches action count
+* metadata written correctly
+* replay loads correctly
+
+### Policies
+
+* bot actions remain valid
+* random policy only emits allowed actions
+
+---
+
+## 15. V-JEPA-Oriented Requirements
+
+Because this is for representation learning, include the following:
+
+### 15.1 Temporal Consistency
+
+Motion must be smooth and frame-to-frame coherent.
+
+### 15.2 Predictive Structure
+
+The world should contain enough regularity that future states are learnable:
+
+* ball trajectories
+* paddle pursuit
+* collision dynamics
+
+### 15.3 Diversity
+
+Need easy generation of:
+
+* predictable episodes
+* noisy episodes
+* partial failures
+* asymmetric matches
+
+### 15.4 Optional Hidden State Logging
+
+Even if training uses only pixels, hidden state should be logged for later probing and evaluation.
+
+### 15.5 Curriculum Support
+
+Agent should make it easy to generate datasets in tiers:
+
+* tier 1: plain pong
+* tier 2: varying speeds
+* tier 3: distractors and noise
+* tier 4: multi-ball / occlusion
+
+---
+
+## 16. Stretch Features
+
+Not required for MVP, but architecture should not block them.
+
+### 16.1 Spin
+
+Impact point and paddle motion affect outgoing ball angle.
+
+### 16.2 Multi-Ball
+
+Multiple simultaneous balls.
+
+### 16.3 Distractors
+
+Moving shapes that do not affect physics but increase visual complexity.
+
+### 16.4 Occlusion
+
+Temporary visual masks or center obstacles.
+
+### 16.5 Partial Observability
+
+Cropping or noisy observation channels.
+
+### 16.6 Alternative Cameras
+
+* zoomed-out
+* cropped
+* follow-ball
+* stacked frames export
+
+### 16.7 Video Export
+
+Save MP4 in addition to raw frames.
+
+---
+
+## 17. MVP Deliverables
+
+The coding agent should deliver these in order:
+
+### Deliverable 1: Playable MVP
+
+* one ball
+* two paddles
+* keyboard support
+* score
+* reset
+* render window
+
+### Deliverable 2: Bot + Random Policies
+
+* simple bot
+* random policy
+* bot-vs-bot mode
+
+### Deliverable 3: Dataset Logging
+
+* frame export
+* actions.jsonl
+* metadata.json
+* optional states.jsonl
+
+### Deliverable 4: Replay + Determinism
+
+* replay saved episodes
+* test deterministic re-run
+
+### Deliverable 5: Domain Randomization
+
+* config-driven randomization for visuals and dynamics
+
+---
+
+## 18. Acceptance Criteria
+
+The project is accepted when:
+
+1. Human can play the game locally.
+2. Bot-vs-bot episodes run automatically.
+3. A command can generate at least 100 episodes without manual interaction.
+4. Each episode writes frames and logs correctly.
+5. Replay reproduces original behavior under same config and seed.
+6. Code is modular enough to extend to multi-ball or richer games later.
+
+---
+
+## 19. Explicit Build Notes for the Agent
+
+* Prioritize **correctness and determinism** over fancy visuals.
+* Use **simple shapes**, not art assets.
+* Keep the first version small and robust.
+* Do not over-engineer RL wrappers yet.
+* Make the environment pleasant for both manual play and automated collection.
+* Log enough hidden state to debug model learning later.
+* Build with extension points for richer synthetic worlds.
+
+---
+
+## 20. Nice-to-Have Follow-Up
+
+After MVP, the next version should evolve into a richer synthetic world benchmark:
+
+* air hockey variant
+* squash variant
+* paddle acceleration
+* occluding obstacles
+* deceptive distractors
+* action delay
+* stochastic observation corruption
+
+That would make it much more useful for JEPA-style robustness experiments.
+
+---
+
+If you want, I can turn this into a **developer-ready PRD + task breakdown**, or into a **single prompt you can paste directly into your coding agent**.
