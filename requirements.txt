@@ -1,9 +1,10 @@
 torch
 torchvision
-mss
+pygame
 opencv-python
+numpy
+mss
 pydirectinput
 keyboard
 imageio
 imageio-ffmpeg
-numpy
