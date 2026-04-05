@@ -27,6 +27,8 @@ from crosser.env.state import NOOP, UP, DOWN, LEFT, RIGHT
 from game_agent.config import AgentConfig
 from game_agent.models.encoder import Encoder
 from game_agent.models.slot_attention import SlotEncoder
+from game_agent.models.encoder_v2 import EncoderV2
+from game_agent.models.probes_multiscale import SpatialPositionProbe, SpatialCarProbe
 from game_agent.preprocessing.transforms import Preprocessor
 
 import pygame
@@ -537,9 +539,13 @@ def plan_action(latent_z, dynamics, probe, reward_head, device,
 
 def main():
     use_slots = '--slots' in sys.argv
+    use_v21 = '--v21' in sys.argv
     device = torch.device('cpu')
 
-    if use_slots:
+    if use_v21:
+        ckpt_dir = os.path.join(os.path.dirname(__file__), 'checkpoints_v21')
+        print("Using V-JEPA 2.1 encoder (dense + deep supervision)")
+    elif use_slots:
         ckpt_dir = os.path.join(os.path.dirname(__file__), 'checkpoints_slots')
         print("Using SLOT ATTENTION encoder (K=8, checkpoints_slots/)")
     else:
@@ -552,7 +558,19 @@ def main():
     preprocessor = Preprocessor(agent_config)
 
     print("Loading models...")
-    if use_slots:
+    v21_spatial_car_probe = None
+    if use_v21:
+        encoder = EncoderV2(agent_config).to(device)
+        encoder.load_state_dict(torch.load(
+            os.path.join(ckpt_dir, 'encoder_v21.pt'), map_location=device, weights_only=True))
+        # Load spatial car probe (14x14) for v21 mode
+        v21_spatial_car_probe = SpatialCarProbe(in_channels=256, grid_size=12).to(device)
+        v21_cp_path = os.path.join(ckpt_dir, 'car_probe_14x14.pt')
+        if os.path.exists(v21_cp_path):
+            v21_spatial_car_probe.load_state_dict(torch.load(v21_cp_path, map_location=device, weights_only=True))
+            v21_spatial_car_probe.eval()
+            print("V2.1 spatial car probe (14x14) loaded!")
+    elif use_slots:
         encoder = SlotEncoder(agent_config, num_slots=8, slot_dim=64, num_iters=3).to(device)
         encoder.load_state_dict(torch.load(
             os.path.join(ckpt_dir, 'slot_encoder.pt'), map_location=device, weights_only=True))
@@ -584,15 +602,36 @@ def main():
 
     # Car occupancy probe
     from crosser_agent.train_car_probe import CarOccupancyProbe
-    car_probe = CarOccupancyProbe(latent_dim=256, grid_size=144).to(device)
-    car_probe_path = os.path.join(ckpt_dir, 'car_probe.pt')
-    if os.path.exists(car_probe_path):
-        car_probe.load_state_dict(torch.load(car_probe_path, map_location=device, weights_only=True))
+    if use_v21 and v21_spatial_car_probe is not None:
+        # Wrap spatial probe to match MLP probe interface: latent_z -> (B, 144) logits
+        class V21CarProbeWrapper(nn.Module):
+            def __init__(self, enc, spatial_probe):
+                super().__init__()
+                self._enc = enc
+                self._probe = spatial_probe
+            def forward(self, latent_z):
+                # Re-encode from scratch not possible (we only have latent_z)
+                # Use cached features from the game loop instead
+                return self._cached_logits
+            def update_cache(self, obs_tensor):
+                with torch.no_grad():
+                    feats = self._enc.forward_multiscale(obs_tensor)
+                    logits_2d = self._probe(feats['14x14'])  # (B, 12, 12)
+                    self._cached_logits = logits_2d.flatten(1)  # (B, 144)
+
+        car_probe = V21CarProbeWrapper(encoder, v21_spatial_car_probe).to(device)
         car_probe.eval()
-        print("Car probe loaded!")
+        print("V2.1 spatial car probe wrapper active!")
     else:
-        car_probe = None
-        print("No car probe found — running without it")
+        car_probe = CarOccupancyProbe(latent_dim=256, grid_size=144).to(device)
+        car_probe_path = os.path.join(ckpt_dir, 'car_probe.pt')
+        if os.path.exists(car_probe_path):
+            car_probe.load_state_dict(torch.load(car_probe_path, map_location=device, weights_only=True))
+            car_probe.eval()
+            print("Car probe loaded!")
+        else:
+            car_probe = None
+            print("No car probe found — running without it")
 
     # PPO learned policy
     from train_ppo_pixels import PolicyValueNet
@@ -835,6 +874,10 @@ def main():
             with torch.no_grad():
                 latent_z = encoder(obs_tensor)
                 pos = probe(latent_z)[0]
+
+                # V2.1: update spatial car probe cache
+                if use_v21 and hasattr(car_probe, 'update_cache'):
+                    car_probe.update_cache(obs_tensor)
 
             probe_pos = [pos[0].item(), pos[1].item()]
 
@@ -1136,6 +1179,7 @@ def benchmark():
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--slots', action='store_true')
+    parser.add_argument('--v21', action='store_true')
     parser.add_argument('--bench', action='store_true')
     parser.add_argument('--mode', default='pure', choices=['pure', 'enhanced', 'reactive', 'probe'])
     parser.add_argument('--episodes', type=int, default=20)
@@ -1148,7 +1192,10 @@ def benchmark():
     os.environ['SDL_AUDIODRIVER'] = 'dummy'
 
     device = torch.device('cpu')
-    if args.slots:
+    if args.v21:
+        ckpt_dir = os.path.join(os.path.dirname(__file__), 'checkpoints_v21')
+        print(f"Encoder: V-JEPA 2.1")
+    elif args.slots:
         ckpt_dir = os.path.join(os.path.dirname(__file__), 'checkpoints_slots')
         print(f"Encoder: SLOT ATTENTION (K=8)")
     else:
@@ -1159,7 +1206,11 @@ def benchmark():
     preprocessor = Preprocessor(agent_config)
 
     # Load models
-    if args.slots:
+    if args.v21:
+        encoder = EncoderV2(agent_config).to(device)
+        encoder.load_state_dict(torch.load(
+            os.path.join(ckpt_dir, 'encoder_v21.pt'), map_location=device, weights_only=True))
+    elif args.slots:
         encoder = SlotEncoder(agent_config, num_slots=8, slot_dim=64, num_iters=3).to(device)
         encoder.load_state_dict(torch.load(
             os.path.join(ckpt_dir, 'slot_encoder.pt'), map_location=device, weights_only=True))
@@ -1186,13 +1237,33 @@ def benchmark():
     reward_head.eval()
 
     from crosser_agent.train_car_probe import CarOccupancyProbe
-    car_probe = CarOccupancyProbe(latent_dim=256, grid_size=144).to(device)
-    cp_path = os.path.join(ckpt_dir, 'car_probe.pt')
-    if os.path.exists(cp_path):
-        car_probe.load_state_dict(torch.load(cp_path, map_location=device, weights_only=True))
-        car_probe.eval()
+    if args.v21:
+        v21_sp = SpatialCarProbe(in_channels=256, grid_size=12).to(device)
+        v21_sp_path = os.path.join(ckpt_dir, 'car_probe_14x14.pt')
+        if os.path.exists(v21_sp_path):
+            v21_sp.load_state_dict(torch.load(v21_sp_path, map_location=device, weights_only=True))
+            v21_sp.eval()
+
+        class V21CarProbeWrapper(nn.Module):
+            def __init__(self, enc, spatial_probe):
+                super().__init__()
+                self._enc = enc; self._probe = spatial_probe; self._cached = None
+            def forward(self, latent_z):
+                return self._cached
+            def update_cache(self, obs_tensor):
+                with torch.no_grad():
+                    feats = self._enc.forward_multiscale(obs_tensor)
+                    self._cached = self._probe(feats['14x14']).flatten(1)
+
+        car_probe = V21CarProbeWrapper(encoder, v21_sp).to(device); car_probe.eval()
     else:
-        car_probe = None
+        car_probe = CarOccupancyProbe(latent_dim=256, grid_size=144).to(device)
+        cp_path = os.path.join(ckpt_dir, 'car_probe.pt')
+        if os.path.exists(cp_path):
+            car_probe.load_state_dict(torch.load(cp_path, map_location=device, weights_only=True))
+            car_probe.eval()
+        else:
+            car_probe = None
 
     print(f"Mode: {args.mode} | Episodes: {args.episodes} | Max steps: {args.max_steps}")
     print("-" * 60)
@@ -1219,6 +1290,8 @@ def benchmark():
             obs_tensor = preprocessor(frame).unsqueeze(0).to(device)
             with torch.no_grad():
                 latent_z = encoder(obs_tensor)
+                if hasattr(car_probe, 'update_cache'):
+                    car_probe.update_cache(obs_tensor)
 
             if args.mode == 'reactive':
                 action = UP
