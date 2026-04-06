@@ -715,7 +715,7 @@ def main():
     plan_scores = None
     think_interval = 1  # plan every frame
     think_counter = 0
-    planning_mode = "pure"  # "pure", "enhanced", "reactive", "ppo"
+    planning_mode = "enhanced" if use_v21 else "pure"  # v21 works best in enhanced
     speed_multiplier = 1  # 1=normal, 0=max speed
     paused = False
     horizon = 6
