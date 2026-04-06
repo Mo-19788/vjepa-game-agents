@@ -2,6 +2,8 @@
 
 World model agents that learn to play games from pixels using V-JEPA (Video Joint Embedding Predictive Architecture), Slot Attention, and DQN.
 
+**Demo:** https://youtu.be/CmaSodNJw6k
+
 Two games included:
 - **Street Crosser** — Frogger-style lane crossing game
 - **Pong** — Classic Pong with V-JEPA agent
