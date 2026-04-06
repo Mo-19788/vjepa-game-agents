@@ -603,15 +603,24 @@ def main():
     # Car occupancy probe
     from crosser_agent.train_car_probe import CarOccupancyProbe
     if use_v21 and v21_spatial_car_probe is not None:
-        # Wrap spatial probe to match MLP probe interface: latent_z -> (B, 144) logits
+        # Wrap spatial probe: use 14x14 for current frame, MLP fallback for dynamics
+        _v21_mlp_fallback = CarOccupancyProbe(latent_dim=256, grid_size=144).to(device)
+        _v21_mlp_path = os.path.join(ckpt_dir, 'car_probe.pt')
+        if os.path.exists(_v21_mlp_path):
+            _v21_mlp_fallback.load_state_dict(torch.load(_v21_mlp_path, map_location=device, weights_only=True))
+        _v21_mlp_fallback.eval()
+
         class V21CarProbeWrapper(nn.Module):
-            def __init__(self, enc, spatial_probe):
+            def __init__(self, enc, spatial_probe, mlp_fallback):
                 super().__init__()
                 self._enc = enc
                 self._probe = spatial_probe
+                self._mlp = mlp_fallback
+                self._cached_logits = None
             def forward(self, latent_z):
-                # Re-encode from scratch not possible (we only have latent_z)
-                # Use cached features from the game loop instead
+                # If called with batch>1 or no cache, use MLP fallback (dynamics predictions)
+                if self._cached_logits is None or latent_z.shape[0] != self._cached_logits.shape[0]:
+                    return self._mlp(latent_z)
                 return self._cached_logits
             def update_cache(self, obs_tensor):
                 with torch.no_grad():
@@ -619,9 +628,9 @@ def main():
                     logits_2d = self._probe(feats['14x14'])  # (B, 12, 12)
                     self._cached_logits = logits_2d.flatten(1)  # (B, 144)
 
-        car_probe = V21CarProbeWrapper(encoder, v21_spatial_car_probe).to(device)
+        car_probe = V21CarProbeWrapper(encoder, v21_spatial_car_probe, _v21_mlp_fallback).to(device)
         car_probe.eval()
-        print("V2.1 spatial car probe wrapper active!")
+        print("V2.1 spatial car probe wrapper active (MLP fallback for dynamics)")
     else:
         car_probe = CarOccupancyProbe(latent_dim=256, grid_size=144).to(device)
         car_probe_path = os.path.join(ckpt_dir, 'car_probe.pt')
@@ -1243,19 +1252,27 @@ def benchmark():
         if os.path.exists(v21_sp_path):
             v21_sp.load_state_dict(torch.load(v21_sp_path, map_location=device, weights_only=True))
             v21_sp.eval()
+        _mlp_fb = CarOccupancyProbe(latent_dim=256, grid_size=144).to(device)
+        _mlp_path = os.path.join(ckpt_dir, 'car_probe.pt')
+        if os.path.exists(_mlp_path):
+            _mlp_fb.load_state_dict(torch.load(_mlp_path, map_location=device, weights_only=True))
+        _mlp_fb.eval()
 
         class V21CarProbeWrapper(nn.Module):
-            def __init__(self, enc, spatial_probe):
+            def __init__(self, enc, spatial_probe, mlp_fallback):
                 super().__init__()
-                self._enc = enc; self._probe = spatial_probe; self._cached = None
+                self._enc = enc; self._probe = spatial_probe
+                self._mlp = mlp_fallback; self._cached = None
             def forward(self, latent_z):
+                if self._cached is None or latent_z.shape[0] != self._cached.shape[0]:
+                    return self._mlp(latent_z)
                 return self._cached
             def update_cache(self, obs_tensor):
                 with torch.no_grad():
                     feats = self._enc.forward_multiscale(obs_tensor)
                     self._cached = self._probe(feats['14x14']).flatten(1)
 
-        car_probe = V21CarProbeWrapper(encoder, v21_sp).to(device); car_probe.eval()
+        car_probe = V21CarProbeWrapper(encoder, v21_sp, _mlp_fb).to(device); car_probe.eval()
     else:
         car_probe = CarOccupancyProbe(latent_dim=256, grid_size=144).to(device)
         cp_path = os.path.join(ckpt_dir, 'car_probe.pt')
